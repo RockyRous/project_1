@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build: ./service-auth
+    container_name: service_auth
+    ports:
+      - "8001:8000"
+    networks:
+      - backend
+    environment:
+      - SERVICE_NAME=service-auth
+
+  events-service:
+    build: ./service-events
+    container_name: service_events
+    ports:
+      - "8002:8000"
+    networks:
+      - backend
+    environment:
+      - SERVICE_NAME=service-events
+
+  notifications-service:
+    build: ./service-notifications
+    container_name: service_notifications
+    ports:
+      - "8003:8000"
+    networks:
+      - backend
+    environment:
+      - SERVICE_NAME=service-notifications
+
+networks:
+  backend:
+    driver: bridge
