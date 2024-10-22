@@ -10,6 +10,7 @@ services:
       - backend
     environment:
       - SERVICE_NAME=service-auth
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db/fastapidb
 
   events-service:
     build: ./service-events
@@ -20,6 +21,7 @@ services:
       - backend
     environment:
       - SERVICE_NAME=service-events
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db/fastapidb
 
   notifications-service:
     build: ./service-notifications
@@ -30,7 +32,25 @@ services:
       - backend
     environment:
       - SERVICE_NAME=service-notifications
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db/fastapidb
+
+  db:
+    image: postgres:17
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fastapidb
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
 networks:
   backend:
     driver: bridge
+
+volumes:
+  postgres_data:
