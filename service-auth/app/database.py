@@ -19,9 +19,18 @@ async_session = sessionmaker(
 
 
 async def init_db():
-    async with engine.begin() as conn:
-        # Создаем все таблицы, определенные в Base.metadata
-        await conn.run_sync(Base.metadata.create_all)
+    retries = 5
+    for attempt in range(retries):
+        try:
+            async with engine.begin() as conn:
+                # Создаем все таблицы, определенные в Base.metadata
+                await conn.run_sync(Base.metadata.create_all)
+            break
+        except OperationalError:
+            if attempt < retries - 1:
+                await asyncio.sleep(2)  # Задержка между попытками
+            else:
+                raise
 
 
 async def get_db() -> AsyncSession:

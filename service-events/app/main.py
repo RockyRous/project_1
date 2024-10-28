@@ -2,27 +2,38 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from models import Event, Booking, User
-from database import SessionLocal, engine
+from database import async_session, engine
 import pika
 import json
 import os
+import time
 
 app = FastAPI()
 
-# ????
-Event.metadata.create_all(bind=engine)
-
-RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+# RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
 
 # Подключение к RabbitMQ
-connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
+connection = None
+retries = 5
+for i in range(retries):
+    try:
+        connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
+        break
+    except pika.exceptions.AMQPConnectionError:
+        if i < retries - 1:
+            time.sleep(2)  # Задержка перед следующей попыткой
+        else:
+            raise
+
+# connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
 channel = connection.channel()
 channel.exchange_declare(exchange='booking_events', exchange_type='fanout')
 
 
 # Зависимость для подключения к БД
 def get_db():
-    db = SessionLocal()
+    db = async_session()
     try:
         yield db
     finally:

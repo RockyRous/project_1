@@ -2,4 +2,5 @@ fastapi
 uvicorn
 pika
 sqlalchemy
-psycopg2
+asyncpg
+
