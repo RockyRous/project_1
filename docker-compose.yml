@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Для доступа к RabbitMQ Management Console
+
   auth-service:
     build: ./service-auth
     container_name: service_auth
@@ -22,6 +31,10 @@ services:
     environment:
       - SERVICE_NAME=service-events
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db/fastapidb
+      - RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+      - postgres
 
   notifications-service:
     build: ./service-notifications
