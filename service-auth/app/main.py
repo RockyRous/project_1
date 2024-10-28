@@ -23,7 +23,6 @@ async def startup():
 
 @app.post("/login", response_model=Token)
 async def login_for_access_token(login_data: Login, db: AsyncSession = Depends(get_db)):
-    # Вызовем сервис для логина
     return await login_user(db, login_data.username, login_data.password)
 
 
