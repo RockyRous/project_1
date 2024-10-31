@@ -1,15 +1,20 @@
 """ Сервис мероприятий """
-from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy.orm import Session
-from models import Event, Booking, User
-from database import async_session, engine
 import pika
 import json
 import os
 import time
 
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import Event, Booking, User
+from database import async_session, get_db
+from event import create_unique_events
+
 app = FastAPI()
 
+# todo: Красиво спрятать
 # RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
 
@@ -31,17 +36,8 @@ channel = connection.channel()
 channel.exchange_declare(exchange='booking_events', exchange_type='fanout')
 
 
-# Зависимость для подключения к БД
-def get_db():
-    db = async_session()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# Функция для отправки события
 def send_booking_created_event(user_id, event_id):
+    """ Функция для отправки события """
     event_data = {
         "user_id": user_id,
         "event_id": event_id
@@ -49,12 +45,14 @@ def send_booking_created_event(user_id, event_id):
     channel.basic_publish(exchange='booking_events', routing_key='', body=json.dumps(event_data))
 
 
-# Бронирование места
+# todo: Только по авторизации
 @app.post("/events/{event_id}/book")
-def book_event(event_id: int, user_id: int, db: Session = Depends(get_db)):
-    event = db.query(Event).filter(Event.id == event_id).first()
+async def book_event(event_id: int, user_id: int, db: AsyncSession = Depends(get_db)):
+    """ Бронирование места """
+    event = await db.execute(select(Event).filter(Event.id == event_id))
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    event = event.first()
 
     if event.available_seats() <= 0:
         raise HTTPException(status_code=400, detail="No available seats")
@@ -63,8 +61,8 @@ def book_event(event_id: int, user_id: int, db: Session = Depends(get_db)):
     booking = Booking(user_id=user_id, event_id=event_id)
     db.add(booking)
     event.booked_seats += 1
-    db.commit()
-    db.refresh(event)
+    await db.commit()
+    await db.refresh(event)
 
     # Отправляем событие в RabbitMQ
     send_booking_created_event(user_id, event_id)
@@ -72,12 +70,34 @@ def book_event(event_id: int, user_id: int, db: Session = Depends(get_db)):
     return {"message": "Booking successful"}
 
 
-# Получение списка забронированных мероприятий для пользователя
-@app.get("/users/{user_id}/bookings")
-def get_user_bookings(user_id: int, db: Session = Depends(get_db)):
-    bookings = db.query(Booking).filter(Booking.user_id == user_id).all()
-    if not bookings:
-        raise HTTPException(status_code=404, detail="No bookings found for user")
+# todo: Только по авторизации
+@app.get("/user/{user_id}/bookings")
+async def get_user_bookings(user_id: int, db: AsyncSession = Depends(get_db)):
+    """ Получение списка забронированных мероприятий для пользователя """
+    try:
+        # Используем асинхронный метод execute для запроса
+        result = await db.execute(select(Booking).filter(Booking.user_id == user_id))
+        bookings = result.scalars().all()  # Получаем все строки из результата
+        return {"bookings": bookings}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении бронирований: {str(e)}")
 
-    return [{"event_id": booking.event_id} for booking in bookings]
 
+# todo: Только по авторизации
+@app.post("/populate-events", response_model=dict)
+def populate_events(db: AsyncSession = Depends(get_db)):
+    try:
+        create_unique_events(db)
+        return {"status": "10 новых мероприятий добавлены в базу данных"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при добавлении мероприятий: {str(e)}")
+
+
+# todo: Только по авторизации
+@app.delete("/delete-all-events", response_model=dict)
+async def delete_all_events(db: AsyncSession = Depends(get_db)):
+    """Асинхронное удаление всех мероприятий из базы данных"""
+    # Выполняем асинхронный запрос на удаление всех записей из таблицы Event
+    await db.execute(delete(Event))
+    await db.commit()  # Асинхронное подтверждение изменений в базе данных
+    return {"status": "Все мероприятия удалены из базы данных"}

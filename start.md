@@ -13,3 +13,13 @@ RabbitMQ Management Console доступна по адресу:
 ```
 http://localhost:15672
 ```
+
+
+
+
+
+
+
+
+## alembik
+```alembic init alembic``` для создания каталога алембик

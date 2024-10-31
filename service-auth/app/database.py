@@ -26,7 +26,7 @@ async def init_db():
                 # Создаем все таблицы, определенные в Base.metadata
                 await conn.run_sync(Base.metadata.create_all)
             break
-        except OperationalError:
+        except:
             if attempt < retries - 1:
                 await asyncio.sleep(2)  # Задержка между попытками
             else:

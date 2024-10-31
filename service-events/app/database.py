@@ -2,7 +2,6 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.future import select
 
 # DATABASE_URL = "postgresql+asyncpg://user:password@localhost/name_db"
 # DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost/fastapidb"   # for local test
@@ -19,9 +18,18 @@ async_session = sessionmaker(
 
 
 async def init_db():
-    async with engine.begin() as conn:
-        # Создаем все таблицы, определенные в Base.metadata
-        await conn.run_sync(Base.metadata.create_all)
+    retries = 5
+    for attempt in range(retries):
+        try:
+            async with engine.begin() as conn:
+                # Создаем все таблицы, определенные в Base.metadata
+                await conn.run_sync(Base.metadata.create_all)
+            break
+        except:
+            if attempt < retries - 1:
+                await asyncio.sleep(2)  # Задержка между попытками
+            else:
+                raise
 
 
 async def get_db() -> AsyncSession:
